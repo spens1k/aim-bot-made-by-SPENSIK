@@ -251,7 +251,7 @@ local Grid = Instance.new("UIGridLayout", TeamsContainer)
 Grid.CellSize = UDim2.new(0, 32, 0, 32)
 Grid.CellPadding = UDim2.new(0, 4, 0, 4)
 
-local teamButtons = {} 
+local teamButtons = {} -- хранение кнопок для обновления индикатора
 
 local function newTeamButton(team)
  local btn = Instance.new("TextButton")
@@ -280,7 +280,7 @@ local function newTeamButton(team)
   updateIndicator()
  end)
 
- teamButtons[team] = updateIndicator 
+ teamButtons[team] = updateIndicator -- сохраняем функцию для обновления
 end
 
 local function rebuildTeams()
@@ -292,6 +292,7 @@ local function rebuildTeams()
   newTeamButton(team)
  end
 
+ -- сразу обновляем индикаторы для всех исключённых команд
  for team, update in pairs(teamButtons) do
   if excludedTeams[team] then
    update()
@@ -303,20 +304,27 @@ rebuildTeams()
 Teams.ChildAdded:Connect(rebuildTeams)
 Teams.ChildRemoved:Connect(rebuildTeams)
 
-if player.Team then
- excludedTeams[player.Team] = true
- if teamButtons[player.Team] then
-  teamButtons[player.Team]()
+-- автоматически исключаем команду игрока и обновляем индикатор
+local lastTeam = nil
+local function updatePlayerTeam()
+ if lastTeam and excludedTeams[lastTeam] then
+  excludedTeams[lastTeam] = nil -- убираем старую команду
+  if teamButtons[lastTeam] then
+   teamButtons[lastTeam]()
+  end
  end
-end
-player:GetPropertyChangedSignal("Team"):Connect(function()
+
  if player.Team then
   excludedTeams[player.Team] = true
   if teamButtons[player.Team] then
    teamButtons[player.Team]()
   end
+  lastTeam = player.Team
  end
-end)
+end
+
+updatePlayerTeam()
+player:GetPropertyChangedSignal("Team"):Connect(updatePlayerTeam)
 
 -- TIGER BOT
 local tigerBotEnabled = false
