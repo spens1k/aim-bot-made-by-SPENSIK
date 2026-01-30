@@ -49,9 +49,9 @@ local function isVisible(part)
  local direction = part.Position - origin
  local params = RaycastParams.new()
  params.FilterType = Enum.RaycastFilterType.Blacklist
- params.FilterDescendantsInstances = { player.Character }
+ params.FilterDescendantsInstances = {player.Character}
  local result = Workspace:Raycast(origin, direction, params)
- return result and result.Instance and result.Instance:IsDescendantOf(part.Parent)
+ return result and result.Instance and (result.Instance:IsDescendantOf(part.Parent) or result.Instance == part)
 end
 
 local function isEnemy(plr)
@@ -190,11 +190,6 @@ newToggle("Enable Custom Bind", customBindEnabled, function(v)
 end)
 
 local bindBtn = newButton("Set Custom Bind: "..(currentBind.Name or "MouseButton2"))
-bindBtn.MouseButton1Click:Connect(function()
- bindBtn.Text = "Press a key..."
- bindingKey = true
-end)
-
 UIS.InputBegan:Connect(function(input)
  if bindingKey then
   if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -204,16 +199,17 @@ UIS.InputBegan:Connect(function(input)
   end
   bindBtn.Text = "Set Custom Bind: "..(currentBind.Name or "MouseButton2")
   bindingKey = false
- end
-end)
-
-UIS.InputBegan:Connect(function(input)
- if customBindEnabled then
+ elseif customBindEnabled then
   if (typeof(currentBind) == "EnumItem" and input.UserInputType == currentBind) or (input.KeyCode == currentBind) then
    holdingBind = true
   end
  end
+
+ if input.KeyCode == Enum.KeyCode.RightShift then
+  Frame.Visible = not Frame.Visible
+ end
 end)
+
 UIS.InputEnded:Connect(function(input)
  if (typeof(currentBind) == "EnumItem" and input.UserInputType == currentBind) or (input.KeyCode == currentBind) then
   holdingBind = false
@@ -221,23 +217,19 @@ UIS.InputEnded:Connect(function(input)
  end
 end)
 
+bindBtn.MouseButton1Click:Connect(function()
+ bindBtn.Text = "Press a key..."
+ bindingKey = true
+end)
+
 -- AIM LOOP
 RunService.RenderStepped:Connect(function()
  local useAim = aimEnabled and (permanentAim or (customBindEnabled and holdingBind))
+ circle.Visible = useAim
  if useAim then
   circle.Position = getCenter()
-  circle.Visible = true
   local part = getNearestTarget()
   if part then snapAim(part) end
- else
-  circle.Visible = false
- end
-end)
-
--- MENU TOGGLE
-UIS.InputBegan:Connect(function(input)
- if input.KeyCode == Enum.KeyCode.RightShift then
-  Frame.Visible = not Frame.Visible
  end
 end)
 
@@ -251,7 +243,7 @@ local Grid = Instance.new("UIGridLayout", TeamsContainer)
 Grid.CellSize = UDim2.new(0, 32, 0, 32)
 Grid.CellPadding = UDim2.new(0, 4, 0, 4)
 
-local teamButtons = {} -- хранение кнопок для обновления индикатора
+local teamButtons = {}
 
 local function newTeamButton(team)
  local btn = Instance.new("TextButton")
@@ -280,7 +272,7 @@ local function newTeamButton(team)
   updateIndicator()
  end)
 
- teamButtons[team] = updateIndicator -- сохраняем функцию для обновления
+ teamButtons[team] = updateIndicator
 end
 
 local function rebuildTeams()
@@ -292,8 +284,7 @@ local function rebuildTeams()
   newTeamButton(team)
  end
 
- -- сразу обновляем индикаторы для всех исключённых команд
- for team, update in pairs(teamButtons) do
+for team, update in pairs(teamButtons) do
   if excludedTeams[team] then
    update()
   end
@@ -304,11 +295,10 @@ rebuildTeams()
 Teams.ChildAdded:Connect(rebuildTeams)
 Teams.ChildRemoved:Connect(rebuildTeams)
 
--- автоматически исключаем команду игрока и обновляем индикатор
 local lastTeam = nil
 local function updatePlayerTeam()
  if lastTeam and excludedTeams[lastTeam] then
-  excludedTeams[lastTeam] = nil -- убираем старую команду
+  excludedTeams[lastTeam] = nil
   if teamButtons[lastTeam] then
    teamButtons[lastTeam]()
   end
@@ -332,30 +322,24 @@ local tigerInterval = 0.1
 local tigerDelay = 0.1 
 local lastShot = 0
 
--- Кнопка для включения/выключения
 local tigerBtn = newToggle("Tiger Bot", tigerBotEnabled, function(v)
     tigerBotEnabled = v
 end)
 
 RunService.RenderStepped:Connect(function()
-    if not tigerBotEnabled then return end
-
-    local aimActive = aimEnabled and (permanentAim or (customBindEnabled and holdingBind))
-    if not aimActive then return end
-
-    local now = tick()
-    if now - lastShot < tigerInterval then return end
-
-    local target = getNearestTarget()
-    if target then
-        
-        task.delay(tigerDelay, function()
-            if tigerBotEnabled and target and aimActive then
-                local mouse = player:GetMouse()
-                mouse1click() 
-            end
-        end)
-
-        lastShot = now
-    end
+ if not tigerBotEnabled then return end
+ local aimActive = aimEnabled and (permanentAim or (customBindEnabled and holdingBind))
+ if not aimActive then return end
+ local now = tick()
+ if now - lastShot < tigerInterval then return end
+ local target = getNearestTarget()
+ if target then
+  task.delay(tigerDelay, function()
+   if tigerBotEnabled and aimActive and target then
+    local mouse = player:GetMouse()
+    mouse1click()
+   end
+  end)
+  lastShot = now
+ end
 end)
